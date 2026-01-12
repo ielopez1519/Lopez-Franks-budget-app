@@ -9,6 +9,10 @@ from typing import List, Dict, Optional, Any
 import streamlit as st
 from supabase import create_client
 
+import streamlit as st
+st.write("DEBUG URL:", st.secrets.get("SUPABASE_URL"))
+st.write("DEBUG KEY EXISTS:", "SUPABASE_KEY" in st.secrets)
+
 # ============================================================
 # SUPABASE CLIENT (correct location)
 # ============================================================
