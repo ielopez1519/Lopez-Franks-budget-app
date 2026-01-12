@@ -9,7 +9,6 @@ from typing import List, Dict, Optional, Any
 import streamlit as st
 from supabase import create_client
 
-import streamlit as st
 st.write("DEBUG URL:", st.secrets.get("SUPABASE_URL"))
 st.write("DEBUG KEY EXISTS:", "SUPABASE_KEY" in st.secrets)
 
@@ -24,6 +23,7 @@ def get_supabase():
     # Runtime check (safe)
     if not url or not key:
         st.error("Supabase secrets not loaded.")
+        st.stop()
 
     return create_client(url, key)
 
