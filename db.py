@@ -54,6 +54,20 @@ def get_transaction_by_id(transaction_id: str) -> Optional[Dict]:
     return r["data"] if r["success"] else None
 
 
+def get_child_transactions(parent_id: str) -> List[Dict]:
+    q = (
+        supabase.table("transactions")
+        .select(
+            "id, date, amount, description, category, type, "
+            "account_id, notes, deleted, is_split_parent, parent_id"
+        )
+        .eq("parent_id", parent_id)
+        .eq("deleted", False)
+    )
+    r = _exec(q)
+    return r["data"] if r["success"] else []
+
+
 def insert_transaction(data: Dict):
     # Normalize category
     if data.get("category"):
@@ -146,7 +160,7 @@ def get_monthly_budget_totals_by_category(year: int, month: int) -> Dict[str, fl
 
 
 # -----------------------------
-# Budgets (restored for Budget Planner)
+# Budgets
 # -----------------------------
 def get_budgets_for_month(year: int, month: int):
     q = (
@@ -179,3 +193,4 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         raise RuntimeError(f"Budget upsert failed: {r['error']}")
 
     return r["data"]
+
