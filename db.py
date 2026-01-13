@@ -72,7 +72,7 @@ def insert_transaction(data: Dict):
     if data.get("category"):
         data["category"] = data["category"].strip().lower()
 
-    q = supabase.table("transactions").insert(data).select("*")
+    q = supabase.table("transactions").insert(data)
     r = _exec(q)
 
     if not r["success"]:
@@ -89,7 +89,6 @@ def update_transaction(transaction_id: str, data: Dict):
         supabase.table("transactions")
         .update(data)
         .eq("id", transaction_id)
-        .select("*")
     )
     r = _exec(q)
 
@@ -104,7 +103,6 @@ def delete_transaction(transaction_id: str):
         supabase.table("transactions")
         .update({"deleted": True})
         .eq("id", transaction_id)
-        .select("*")
     )
     r = _exec(q)
 
@@ -138,7 +136,7 @@ def get_transactions_for_month(year: int, month: int) -> List[Dict]:
 
 
 # -----------------------------
-# Budgets (FIXED)
+# Budgets (Supabase v2 FIXED)
 # -----------------------------
 def get_monthly_budget_totals_by_category(year: int, month: int) -> Dict[str, float]:
     month_date = f"{year}-{month:02d}-01"
@@ -186,10 +184,9 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         "type": btype,
     }
 
-    q = (
-        supabase.table("budgets")
-        .upsert(payload, on_conflict=["category", "year", "month"])
-        .select("*")
+    q = supabase.table("budgets").upsert(
+        payload,
+        on_conflict=["category", "year", "month"]
     )
     r = _exec(q)
 
@@ -197,5 +194,6 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         raise RuntimeError(f"Budget upsert failed: {r['error']}")
 
     return r["data"]
+
 
 
