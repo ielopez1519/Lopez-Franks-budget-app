@@ -29,6 +29,23 @@ def show_budget_planner():
     if "category" in df.columns:
         df["category"] = df["category"].astype(str).str.lower()
 
+    # ---------------------------------------------------------
+    # Summary (Income / Expenses / Net)
+    # ---------------------------------------------------------
+    if not df.empty:
+        income_total = df[df["type"] == "income"]["amount"].sum()
+        expense_total = df[df["type"] != "income"]["amount"].sum()
+        net_total = income_total - expense_total
+
+        st.subheader("Planned Summary")
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Income Planned", f"${income_total:,.2f}")
+        col2.metric("Expenses Planned", f"${expense_total:,.2f}")
+        col3.metric("Net Planned", f"${net_total:,.2f}")
+    else:
+        st.info("No planned budgets for this month yet.")
+
     st.markdown("---")
 
     # Helper to render each section
