@@ -88,19 +88,12 @@ def get_account_balance(account_id: str) -> float:
 # TRANSACTIONS — CRUD
 # ============================================================
 
-def get_all_transactions() -> List[Dict]:
-    """
-    Return all non-deleted transactions (parents + children),
-    joined with account name.
-    """
-    q = (
-        supabase.table("transactions")
-        .select("*, accounts(name)")
-        .eq("deleted", False)
-        .order("date", desc=True)
-    )
-    r = _exec(q)
-    return r["data"] or []
+def get_all_transactions():
+    resp = supabase.table("transactions") \
+        .select("id, date, amount, description, category, type, account_id, notes, deleted, is_split_parent, parent_id") \
+        .execute()
+
+    return resp.data or []
 
 
 def get_transaction(transaction_id: str) -> Optional[Dict]:
