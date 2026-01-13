@@ -2,6 +2,8 @@ import streamlit as st
 from typing import Dict, List, Optional
 from supabase import create_client, Client
 
+print(">>> USING NEW DB.PY <<<")
+
 # OLD FORMAT SECRETS (kept for stability)
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
