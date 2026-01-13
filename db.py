@@ -69,7 +69,6 @@ def get_child_transactions(parent_id: str) -> List[Dict]:
 
 
 def insert_transaction(data: Dict):
-    # Normalize category
     if data.get("category"):
         data["category"] = data["category"].strip().lower()
 
@@ -83,7 +82,6 @@ def insert_transaction(data: Dict):
 
 
 def update_transaction(transaction_id: str, data: Dict):
-    # Normalize category
     if data.get("category"):
         data["category"] = data["category"].strip().lower()
 
@@ -139,12 +137,17 @@ def get_transactions_for_month(year: int, month: int) -> List[Dict]:
     return r["data"] if r["success"] else []
 
 
+# -----------------------------
+# Budgets (FIXED)
+# -----------------------------
 def get_monthly_budget_totals_by_category(year: int, month: int) -> Dict[str, float]:
+    month_date = f"{year}-{month:02d}-01"
+
     q = (
         supabase.table("budgets")
         .select("category, amount")
         .eq("year", year)
-        .eq("month", month)
+        .eq("month", month_date)
     )
     r = _exec(q)
 
@@ -159,25 +162,26 @@ def get_monthly_budget_totals_by_category(year: int, month: int) -> Dict[str, fl
     return totals
 
 
-# -----------------------------
-# Budgets
-# -----------------------------
 def get_budgets_for_month(year: int, month: int):
+    month_date = f"{year}-{month:02d}-01"
+
     q = (
         supabase.table("budgets")
         .select("*")
         .eq("year", year)
-        .eq("month", month)
+        .eq("month", month_date)
     )
     r = _exec(q)
     return r["data"] if r["success"] else []
 
 
 def upsert_budget(category: str, year: int, month: int, amount: float, btype: str):
+    month_date = f"{year}-{month:02d}-01"
+
     payload = {
-        "category": category,
+        "category": category.strip().lower(),
         "year": year,
-        "month": month,
+        "month": month_date,
         "amount": amount,
         "type": btype,
     }
@@ -193,4 +197,5 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         raise RuntimeError(f"Budget upsert failed: {r['error']}")
 
     return r["data"]
+
 
