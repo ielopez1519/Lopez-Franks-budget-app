@@ -188,7 +188,7 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
 
     q = (
         supabase.table("budgets")
-        .upsert(payload, on_conflict="category,year,month")
+        .upsert(payload, on_conflict=["category", "year", "month"])
         .select("*")
     )
     r = _exec(q)
