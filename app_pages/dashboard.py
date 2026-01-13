@@ -83,16 +83,19 @@ def show_dashboard():
         )
         st.dataframe(df_display, use_container_width=True)
 
+        import matplotlib.pyplot as plt
+
         st.markdown("**Spending by category (actuals only)**")
         actual_only = {
             cat: val for cat, val in actuals.items() if val < 0 and cat in categories
         }
         if actual_only:
-            chart_df = pd.DataFrame(
-                {
-                    "Category": list(actual_only.keys()),
-                    "Spending": [abs(v) for v in actual_only.values()],
-                }
-            )
-            chart_df = chart_df.set_index("Category")
-            st.bar_chart(chart_df)
+            labels = list(actual_only.keys())
+            sizes = [abs(v) for v in actual_only.values()]
+        
+            fig, ax = plt.subplots()
+            ax.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=90)
+            ax.axis("equal")
+        
+            st.pyplot(fig)
+
