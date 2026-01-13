@@ -15,7 +15,7 @@ def show_add_transaction():
     date = st.date_input("Date", datetime.date.today())
     amount = st.number_input("Amount", value=0.0, step=1.0)
     description = st.text_input("Description")
-    category = st.text_input("Category")
+    category_input = st.text_input("Category")
     notes = st.text_area("Notes", "")
 
     account_names = [a["name"] for a in accounts]
@@ -32,12 +32,24 @@ def show_add_transaction():
             st.error("Amount cannot be zero.")
             return
 
+        # Normalize category
+        category = (category_input or "").strip().lower() or None
+
+        # Determine transaction type
+        income_categories = {"income", "paycheck", "deposit", "net paycheck"}
+
+        if category in income_categories:
+            tx_type = "income"
+        else:
+            tx_type = "expense"
+
         insert_transaction(
             {
                 "date": date.isoformat(),
                 "amount": amount,
                 "description": description,
-                "category": category or None,
+                "category": category,
+                "type": tx_type,  # NEW FIELD
                 "account_id": account_id,
                 "notes": notes,
                 "deleted": False,
