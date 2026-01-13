@@ -143,3 +143,39 @@ def get_monthly_budget_totals_by_category(year: int, month: int) -> Dict[str, fl
         totals[cat] = totals.get(cat, 0.0) + float(row["amount"])
 
     return totals
+
+
+# -----------------------------
+# Budgets (restored for Budget Planner)
+# -----------------------------
+def get_budgets_for_month(year: int, month: int):
+    q = (
+        supabase.table("budgets")
+        .select("*")
+        .eq("year", year)
+        .eq("month", month)
+    )
+    r = _exec(q)
+    return r["data"] if r["success"] else []
+
+
+def upsert_budget(category: str, year: int, month: int, amount: float, btype: str):
+    payload = {
+        "category": category,
+        "year": year,
+        "month": month,
+        "amount": amount,
+        "type": btype,
+    }
+
+    q = (
+        supabase.table("budgets")
+        .upsert(payload, on_conflict="category,year,month")
+        .select("*")
+    )
+    r = _exec(q)
+
+    if not r["success"]:
+        raise RuntimeError(f"Budget upsert failed: {r['error']}")
+
+    return r["data"]
