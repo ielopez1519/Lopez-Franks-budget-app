@@ -1,110 +1,57 @@
-"""
-db.py
-
-Modernized, safe, Phase‑5.2 database layer.
-"""
-
-import datetime
-from typing import List, Dict, Optional, Any
 import streamlit as st
-from supabase import create_client
+from typing import Dict, List, Optional
+from supabase import create_client, Client
+
+# Initialize Supabase client
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["key"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-# ============================================================
-# SUPABASE CLIENT (correct location)
-# ============================================================
-
-def get_supabase():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-
-    # Runtime check (safe)
-    if not url or not key:
-        st.error("Supabase secrets not loaded.")
-        st.stop()
-
-    return create_client(url, key)
-
-supabase = get_supabase()
-
-# ============================================================
-# INTERNAL SAFE EXEC WRAPPER
-# ============================================================
-
-def _exec(query) -> Dict[str, Any]:
-    """
-    Execute a Supabase query safely.
-    Always returns:
-        { "success": bool, "data": list|dict|None, "error": str|None }
-    Prevents `.data` crashes and gives clear errors.
-    """
+# -----------------------------
+# Internal execution wrapper
+# -----------------------------
+def _exec(query):
     try:
-        res = query.execute()
+        resp = query.execute()
+        return {"success": True, "data": resp.data}
     except Exception as e:
-        return {"success": False, "data": None, "error": str(e)}
-
-    if res is None:
-        return {"success": False, "data": None, "error": "Supabase returned None"}
-
-    data = getattr(res, "data", None)
-    error = getattr(res, "error", None)
-
-    # Some versions return dict-like responses
-    if data is None and isinstance(res, dict):
-        data = res.get("data")
-        error = res.get("error")
-
-    return {"success": error is None, "data": data, "error": error}
+        return {"success": False, "error": str(e)}
 
 
-# ============================================================
-# ACCOUNTS
-# ============================================================
-
+# -----------------------------
+# Accounts
+# -----------------------------
 def get_accounts() -> List[Dict]:
     q = supabase.table("accounts").select("*").order("name")
     r = _exec(q)
-    return r["data"] or []
+    return r["data"] if r["success"] else []
 
 
-def get_account_balance(account_id: str) -> float:
-    """
-    Sum all non-deleted, non-parent transactions for an account.
-    Prevents double-counting split parents.
-    """
-    q = (
-        supabase.table("transactions")
-        .select("amount")
-        .eq("account_id", account_id)
-        .eq("deleted", False)
-        .eq("is_split_parent", False)
+# -----------------------------
+# Transactions
+# -----------------------------
+def get_all_transactions() -> List[Dict]:
+    q = supabase.table("transactions").select(
+        "id, date, amount, description, category, type, "
+        "account_id, notes, deleted, is_split_parent, parent_id"
     )
     r = _exec(q)
-    rows = r["data"] or []
-    return float(sum(float(t["amount"]) for t in rows))
+    return r["data"] if r["success"] else []
 
 
-# ============================================================
-# TRANSACTIONS — CRUD
-# ============================================================
-
-def get_all_transactions():
-    resp = supabase.table("transactions") \
-        .select("id, date, amount, description, category, type, account_id, notes, deleted, is_split_parent, parent_id") \
-        .execute()
-
-    return resp.data or []
-
-
-def get_transaction(transaction_id: str) -> Optional[Dict]:
+def get_transaction_by_id(transaction_id: str) -> Optional[Dict]:
     q = (
         supabase.table("transactions")
-        .select("*, accounts(name)")
+        .select(
+            "id, date, amount, description, category, type, "
+            "account_id, notes, deleted, is_split_parent, parent_id"
+        )
         .eq("id", transaction_id)
         .single()
     )
     r = _exec(q)
-    return r["data"]
+    return r["data"] if r["success"] else None
 
 
 def insert_transaction(data: Dict):
@@ -122,7 +69,7 @@ def insert_transaction(data: Dict):
 
 
 def update_transaction(transaction_id: str, data: Dict):
-    # Normalize category if present
+    # Normalize category
     if data.get("category"):
         data["category"] = data["category"].strip().lower()
 
@@ -140,7 +87,6 @@ def update_transaction(transaction_id: str, data: Dict):
     return r["data"]
 
 
-
 def delete_transaction(transaction_id: str):
     q = (
         supabase.table("transactions")
@@ -156,166 +102,44 @@ def delete_transaction(transaction_id: str):
     return r["data"]
 
 
-# ============================================================
-# SPLIT TRANSACTIONS
-# ============================================================
-
-def get_child_transactions(parent_id: str) -> List[Dict]:
-    q = (
-        supabase.table("transactions")
-        .select("*")
-        .eq("parent_id", parent_id)
-        .eq("deleted", False)
-        .order("date")
-    )
-    r = _exec(q)
-    return r["data"] or []
-
-
-def clear_children(parent_id: str):
-    q = (
-        supabase.table("transactions")
-        .update({"deleted": True})
-        .eq("parent_id", parent_id)
-    )
-    r = _exec(q)
-    if not r["success"]:
-        raise RuntimeError(f"Clear children failed: {r['error']}")
-    return r["data"]
-
-
-def create_split_children(
-    parent_id: str,
-    date: str,
-    account_id: str,
-    description: str,
-    notes: str,
-    splits: List[Dict],
-):
-    rows = []
-    for s in splits:
-        rows.append(
-            {
-                "date": date,
-                "amount": s["amount"],
-                "description": description,
-                "category": s["category"],
-                "account_id": account_id,
-                "notes": notes,
-                "is_split_parent": False,
-                "parent_id": parent_id,
-            }
-        )
-
-    if not rows:
-        return None
-
-    q = supabase.table("transactions").insert(rows)
-    r = _exec(q)
-    if not r["success"]:
-        raise RuntimeError(f"Create split children failed: {r['error']}")
-    return r["data"]
-
-
-def delete_transaction_family(parent_id: str):
-    # delete children
-    q1 = (
-        supabase.table("transactions")
-        .update({"deleted": True})
-        .eq("parent_id", parent_id)
-    )
-    r1 = _exec(q1)
-    if not r1["success"]:
-        raise RuntimeError(f"Delete children failed: {r1['error']}")
-
-    # delete parent
-    q2 = (
-        supabase.table("transactions")
-        .update({"deleted": True})
-        .eq("id", parent_id)
-    )
-    r2 = _exec(q2)
-    if not r2["success"]:
-        raise RuntimeError(f"Delete parent failed: {r2['error']}")
-
-    return r2["data"]
-
-
-# ============================================================
-# MONTHLY TRANSACTIONS (Dashboard)
-# ============================================================
-
-def get_transactions_for_month(year, month):
+# -----------------------------
+# Monthly Queries
+# -----------------------------
+def get_transactions_for_month(year: int, month: int) -> List[Dict]:
     start = f"{year}-{month:02d}-01"
     end_month = month + 1 if month < 12 else 1
     end_year = year if month < 12 else year + 1
     end = f"{end_year}-{end_month:02d}-01"
 
-    resp = supabase.table("transactions") \
-        .select("id, date, amount, description, category, type, account_id, notes, deleted, is_split_parent, parent_id") \
-        .gte("date", start) \
-        .lt("date", end) \
-        .eq("deleted", False) \
-        .execute()
-
-    return resp.data or []
-
-
-def get_monthly_actuals_by_category(year: int, month: int) -> Dict[str, float]:
-    txs = get_transactions_for_month(year, month)
-    totals = {}
-    for t in txs:
-        cat = t.get("category") or "Uncategorized"
-        amt = float(t["amount"])
-        totals[cat] = totals.get(cat, 0.0) + amt
-    return totals
-
-
-# ============================================================
-# BUDGETS
-# ============================================================
-
-def get_budgets_for_month(year: int, month: int) -> List[Dict]:
-    month_date = datetime.date(year, month, 1)
     q = (
-        supabase.table("budgets")
-        .select("*")
-        .eq("month", month_date.isoformat())
-        .order("category")
+        supabase.table("transactions")
+        .select(
+            "id, date, amount, description, category, type, "
+            "account_id, notes, deleted, is_split_parent, parent_id"
+        )
+        .gte("date", start)
+        .lt("date", end)
+        .eq("deleted", False)
     )
     r = _exec(q)
-    return r["data"] or []
-
-
-def upsert_budget(category: str, year: int, month: int, amount: float, btype: str):
-    """
-    Insert or update a budget row for a given category + month.
-    budgets.month is a DATE column.
-    """
-    month_date = datetime.date(year, month, 1)
-
-    row = {
-        "category": category,
-        "year": year,
-        "month": month_date.isoformat(),
-        "amount": amount,
-        "type": btype,
-    }
-
-    q = supabase.table("budgets").upsert(row, on_conflict="category,month")
-    r = _exec(q)
-
-    if not r["success"]:
-        raise RuntimeError(f"Budget upsert failed: {r['error']}")
-
-    return r["data"]
+    return r["data"] if r["success"] else []
 
 
 def get_monthly_budget_totals_by_category(year: int, month: int) -> Dict[str, float]:
-    budgets = get_budgets_for_month(year, month)
+    q = (
+        supabase.table("budgets")
+        .select("category, amount")
+        .eq("year", year)
+        .eq("month", month)
+    )
+    r = _exec(q)
+
+    if not r["success"]:
+        return {}
+
     totals = {}
-    for b in budgets:
-        cat = b["category"]
-        amt = float(b["amount"])
-        totals[cat] = totals.get(cat, 0.0) + amt
+    for row in r["data"]:
+        cat = (row["category"] or "").lower()
+        totals[cat] = totals.get(cat, 0.0) + float(row["amount"])
+
     return totals
