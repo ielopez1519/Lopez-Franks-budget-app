@@ -115,19 +115,37 @@ def get_transaction(transaction_id: str) -> Optional[Dict]:
 
 
 def insert_transaction(data: Dict):
-    q = supabase.table("transactions").insert(data)
+    # Normalize category
+    if data.get("category"):
+        data["category"] = data["category"].strip().lower()
+
+    q = supabase.table("transactions").insert(data).select("*")
     r = _exec(q)
+
     if not r["success"]:
         raise RuntimeError(f"Insert transaction failed: {r['error']}")
+
     return r["data"]
 
 
 def update_transaction(transaction_id: str, data: Dict):
-    q = supabase.table("transactions").update(data).eq("id", transaction_id)
+    # Normalize category if present
+    if data.get("category"):
+        data["category"] = data["category"].strip().lower()
+
+    q = (
+        supabase.table("transactions")
+        .update(data)
+        .eq("id", transaction_id)
+        .select("*")
+    )
     r = _exec(q)
+
     if not r["success"]:
         raise RuntimeError(f"Update transaction failed: {r['error']}")
+
     return r["data"]
+
 
 
 def delete_transaction(transaction_id: str):
@@ -135,10 +153,13 @@ def delete_transaction(transaction_id: str):
         supabase.table("transactions")
         .update({"deleted": True})
         .eq("id", transaction_id)
+        .select("*")
     )
     r = _exec(q)
+
     if not r["success"]:
         raise RuntimeError(f"Delete transaction failed: {r['error']}")
+
     return r["data"]
 
 
@@ -231,25 +252,20 @@ def delete_transaction_family(parent_id: str):
 # MONTHLY TRANSACTIONS (Dashboard)
 # ============================================================
 
-def get_transactions_for_month(year: int, month: int) -> List[Dict]:
-    """
-    Returns all non-deleted, non-parent transactions for the month.
-    Children count; parents do not.
-    """
-    start = datetime.date(year, month, 1)
-    end = datetime.date(year + (month == 12), (month % 12) + 1, 1)
+def get_transactions_for_month(year, month):
+    start = f"{year}-{month:02d}-01"
+    end_month = month + 1 if month < 12 else 1
+    end_year = year if month < 12 else year + 1
+    end = f"{end_year}-{end_month:02d}-01"
 
-    q = (
-        supabase.table("transactions")
-        .select("*, accounts(name)")
-        .eq("deleted", False)
-        .eq("is_split_parent", False)
-        .gte("date", start.isoformat())
-        .lt("date", end.isoformat())
-        .order("date")
-    )
-    r = _exec(q)
-    return r["data"] or []
+    resp = supabase.table("transactions") \
+        .select("id, date, amount, description, category, type, account_id, notes, deleted, is_split_parent, parent_id") \
+        .gte("date", start) \
+        .lt("date", end) \
+        .eq("deleted", False) \
+        .execute()
+
+    return resp.data or []
 
 
 def get_monthly_actuals_by_category(year: int, month: int) -> Dict[str, float]:
