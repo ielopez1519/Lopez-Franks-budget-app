@@ -1,110 +1,94 @@
 import streamlit as st
 import datetime
-from db import get_budgets_for_month, upsert_budget
-from utils.navigation import safe_rerun
+import pandas as pd
+
+from db import (
+    get_budgets_for_month,
+    upsert_budget,
+)
 
 
-# ---------------------------------------------------------
-# Summary Renderer (Income / Expenses / Net)
-# ---------------------------------------------------------
-def render_budget_summary(budgets):
-    income_total = 0.0
-    expense_total = 0.0
-
-    for b in budgets:
-        amt = float(b["amount"])
-        if b["type"] == "income":
-            income_total += amt
-        else:
-            expense_total += amt
-
-    net_total = income_total - expense_total
-
-    st.markdown("## Summary")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Income", f"${income_total:.2f}")
-    with col2:
-        st.metric("Expenses", f"${expense_total:.2f}")
-    with col3:
-        st.metric("Net Total", f"${net_total:.2f}")
-
-
-# ---------------------------------------------------------
-# Render a single section (Income, Bills, Budgets, Savings)
-# ---------------------------------------------------------
-def _render_section(title, section_type, budgets, year, month):
-    st.markdown(f"### {title}")
-
-    section_rows = [b for b in budgets if b["type"] == section_type]
-
-    for b in section_rows:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.text_input(
-                "Category",
-                value=b["category"],
-                key=f"{section_type}_cat_{b['id']}",
-                disabled=True,
-            )
-        with col2:
-            new_amt = st.number_input(
-                "Amount",
-                value=float(b["amount"]),
-                key=f"{section_type}_amt_{b['id']}",
-                min_value=0.0,
-                step=50.0,
-            )
-
-        if st.button("Save", key=f"{section_type}_save_{b['id']}"):
-            upsert_budget(
-                b["category"],
-                year,
-                month,
-                new_amt,
-                section_type,
-            )
-            safe_rerun()
-
-    st.markdown("---")
-
-    st.markdown(f"#### Add new {title.lower()} category")
-
-    new_cat = st.text_input(f"New {title} category", key=f"new_{section_type}_cat")
-    new_amt = st.number_input(
-        f"{title} amount",
-        min_value=0.0,
-        step=50.0,
-        key=f"new_{section_type}_amt",
-    )
-
-    if st.button(f"Add {title}", key=f"add_{section_type}"):
-        if new_cat.strip() == "":
-            st.error("Category name cannot be empty.")
-            return
-
-        upsert_budget(new_cat, year, month, new_amt, section_type)
-        safe_rerun()
-
-
-# ---------------------------------------------------------
-# Main Page
-# ---------------------------------------------------------
 def show_budget_planner():
     st.title("Budget Planner")
 
+    # Default to current month
     today = datetime.date.today()
     year = st.number_input("Year", value=today.year, step=1)
     month = st.number_input("Month", value=today.month, min_value=1, max_value=12)
 
-    budgets = get_budgets_for_month(year, month)
+    # Load budgets
+    budgets = get_budgets_for_month(int(year), int(month))
 
-    render_budget_summary(budgets)
+    # Convert to DataFrame for easier manipulation
+    if budgets:
+        df = pd.DataFrame(budgets)
+    else:
+        df = pd.DataFrame(columns=["category", "amount", "type", "year", "month"])
+
+    # Normalize category to lowercase
+    if "category" in df.columns:
+        df["category"] = df["category"].astype(str).str.lower()
 
     st.markdown("---")
 
-    _render_section("Income", "income", budgets, int(year), int(month))
-    _render_section("Bills", "bill", budgets, int(year), int(month))
-    _render_section("Budgets", "budget", budgets, int(year), int(month))
-    _render_section("Savings", "savings", budgets, int(year), int(month))
+    # Helper to render each section
+    def render_section(title, section_type):
+        st.subheader(title)
+
+        section_df = df[df["type"] == section_type].copy()
+
+        if section_df.empty:
+            st.info(f"No {title.lower()} set for this month.")
+
+        edited_df = st.data_editor(
+            section_df[["category", "amount"]],
+            num_rows="dynamic",
+            key=f"editor_{section_type}",
+        )
+
+        col1, col2 = st.columns([1, 1])
+
+        # Save changes
+        if col1.button(f"Save {title}", key=f"save_{section_type}"):
+            for _, row in edited_df.iterrows():
+                upsert_budget(
+                    category=row["category"],
+                    year=int(year),
+                    month=int(month),
+                    amount=float(row["amount"]),
+                    btype=section_type,
+                )
+            st.success(f"{title} saved.")
+
+        # Add new row
+        with col2:
+            with st.expander(f"Add new {title} category"):
+                new_cat = st.text_input(f"New {title} category", key=f"new_{section_type}_cat")
+                new_amt = st.number_input(
+                    f"{title} amount",
+                    min_value=0.0,
+                    step=50.0,
+                    key=f"new_{section_type}_amt",
+                )
+
+                if st.button(f"Add {title}", key=f"add_{section_type}"):
+                    if new_cat.strip() == "":
+                        st.error("Category name cannot be empty.")
+                    else:
+                        upsert_budget(
+                            category=new_cat.strip().lower(),
+                            year=int(year),
+                            month=int(month),
+                            amount=float(new_amt),
+                            btype=section_type,
+                        )
+                        st.success(f"{title} added.")
+                        st.experimental_rerun()
+
+        st.markdown("---")
+
+    # Render each section
+    render_section("Income", "income")
+    render_section("Bills", "bill")
+    render_section("Budgets", "budget")
+    render_section("Savings", "savings")
