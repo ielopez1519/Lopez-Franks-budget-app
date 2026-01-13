@@ -175,7 +175,6 @@ def get_budgets_for_month(year: int, month: int):
 
 
 def upsert_budget(category: str, year: int, month: int, amount: float, btype: str, id: str | None = None):
-    # Convert month integer → YYYY-MM-01
     month_date = f"{year}-{month:02d}-01"
 
     payload = {
@@ -186,13 +185,12 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         "type": btype,
     }
 
-    # Include ID only when updating an existing row
     if id is not None:
         payload["id"] = id
 
     q = supabase.table("budgets").upsert(
         payload,
-        on_conflict=["category", "year", "month"]
+        on_conflict="category,year,month"   # <-- FIXED
     )
     r = _exec(q)
 
@@ -200,6 +198,7 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         raise RuntimeError(f"Budget upsert failed: {r['error']}")
 
     return r["data"]
+
 
 supabase_url = SUPABASE_URL
 
