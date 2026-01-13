@@ -1,7 +1,7 @@
 import streamlit as st
 import datetime
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 from db import (
     get_transactions_for_month,
@@ -98,18 +98,23 @@ def show_dashboard():
         # Pie Chart (Actual Spending Only)
         # ---------------------------------------------------------
         st.markdown("**Spending by category (actuals only)**")
-
-        # Only include categories where actual spending > 0 (your logic)
-        actual_only = {
-            cat: val for cat, val in actuals.items() if val > 0 and cat in categories
+        
+        # Filter: only expense categories (exclude income)
+        expense_cats = {
+            cat: val for cat, val in actuals.items()
+            if cat and val > 0 and cat not in ["income", "net paycheck"]
         }
+        
+        if expense_cats:
+            labels = list(expense_cats.keys())
+            sizes = [abs(v) for v in expense_cats.values()]
+        
+            fig = px.pie(
+                names=labels,
+                values=sizes,
+                title="Spending by Category",
+                hole=0.0,  # set to 0.4 for donut style
+            )
+        
+            st.plotly_chart(fig, use_container_width=True)
 
-        if actual_only:
-            labels = list(actual_only.keys())
-            sizes = [abs(v) for v in actual_only.values()]
-
-            fig, ax = plt.subplots()
-            ax.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=90)
-            ax.axis("equal")
-
-            st.pyplot(fig)
