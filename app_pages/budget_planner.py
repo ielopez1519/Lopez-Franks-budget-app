@@ -52,16 +52,25 @@ def show_budget_planner():
     def render_section(title, section_type):
         st.subheader(title)
 
+        # Filter for this section
         section_df = df[df["type"] == section_type].copy()
 
         if section_df.empty:
             st.info(f"No {title.lower()} set for this month.")
+            return # <-- IMPORTANT: stop here if no rows
 
+        # IMPORTANT: keep id internally, but hide it from the UI
+        internal_df = section_df[["id", "category", "amount"]].copy()
+
+        # Show only category + amount to the user
         edited_df = st.data_editor(
-            section_df[["category", "amount"]],
+            internal_df.drop(columns=["id"]), # hide id from UI
             num_rows="dynamic",
             key=f"editor_{section_type}",
         )
+
+        # Reattach id after editing
+        edited_df = edited_df.join(internal_df["id"], how="left")
 
         col1, col2 = st.columns([1, 1])
 
