@@ -5,6 +5,7 @@ import pandas as pd
 from db import (
     get_budgets_for_month,
     upsert_budget,
+    supabase_url,
 )
 
 
