@@ -45,3 +45,4 @@ def show_transactions():
             from db import delete_transaction
             delete_transaction(tx_id)
             safe_rerun()
+            safe_rerun()
