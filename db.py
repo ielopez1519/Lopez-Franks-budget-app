@@ -2,9 +2,9 @@ import streamlit as st
 from typing import Dict, List, Optional
 from supabase import create_client, Client
 
-# Initialize Supabase client
-SUPABASE_URL = st.secrets["supabase"]["url"]
-SUPABASE_KEY = st.secrets["supabase"]["key"]
+# OLD FORMAT SECRETS (kept for stability)
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
