@@ -4,3 +4,4 @@ gotrue==2.8.0
 httpx==0.24.1
 python-dotenv
 pandas
+matplotlib
