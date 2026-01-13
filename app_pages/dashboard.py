@@ -30,17 +30,20 @@ def show_dashboard():
     expense_total = 0.0
 
     for t in txs:
-        cat = t.get("category")
-        if not cat:
-            continue
+        cat = (t.get("category") or "").lower()
         amt = float(t["amount"])
+        tx_type = t.get("type", "expense")  # default to expense if missing
+
+        # Track category totals
         actuals[cat] = actuals.get(cat, 0.0) + amt
-        if amt > 0:
+
+        # Income vs expense logic
+        if tx_type == "income":
             income_total += amt
         else:
             expense_total += amt
 
-    net = income_total + expense_total
+    net = income_total - abs(expense_total)
 
     st.subheader("Overview")
     col1, col2, col3 = st.columns(3)
