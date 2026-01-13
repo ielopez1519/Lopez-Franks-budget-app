@@ -69,10 +69,11 @@ def show_budget_planner():
         if col1.button(f"Save {title}", key=f"save_{section_type}"):
             for _, row in edited_df.iterrows():
                 upsert_budget(
-                    category=row["category"],
-                    year=int(year),
-                    month=int(month),
-                    amount=float(row["amount"]),
+                    id=row["id"], # <-- this is the critical fix 
+                    category=row["category"], 
+                    year=int(year), 
+                    month=int(month), 
+                    amount=float(row["amount"]), 
                     btype=section_type,
                 )
             st.success(f"{title} saved.")
