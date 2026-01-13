@@ -9,7 +9,6 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
 # -----------------------------
 # Internal execution wrapper
 # -----------------------------
@@ -201,3 +200,6 @@ def upsert_budget(category: str, year: int, month: int, amount: float, btype: st
         raise RuntimeError(f"Budget upsert failed: {r['error']}")
 
     return r["data"]
+
+supabase_url = SUPABASE_URL
+
