@@ -11,6 +11,8 @@ from db import (
 def show_budget_planner():
     st.title("Budget Planner")
 
+    st.write("SUPABASE URL:", supabase_url)
+
     # Default to current month
     today = datetime.date.today()
     year = st.number_input("Year", value=today.year, step=1)
